@@ -55,6 +55,7 @@
     <string name="help">Help</string>
     <string name="help_message">&#8226; Enabling filtering in some cases can greatly reduce performance. Disable this option if game is too slow.&lt;BR>&#8226; Image flickering issues can be fixed by enabling the "Immediate processing mode" option.</string>
     <string name="hide_buttons">Hide buttons</string>
+    <string name="reset_position">Reset position</string>
     <string name="joystick_mapping">Joystick mapping</string>
     <string name="joystick_map_up">Up</string>
     <string name="joystick_map_down">Down</string>
@@ -204,6 +205,7 @@
     <string name="PREF_VK_SOFT_KEYS">Soft keys: </string>
     <string name="PREF_VK_TYPE">Keyboard type</string>
     <string name="pref_vk_type_arrows">Arrows</string>
+    <string name="pref_vk_type_joystick">Joystick</string>
     <string name="pref_vk_type_arrows_numbers">Arrows &amp; numbers</string>
     <string name="pref_vk_type_custom">Custom</string>
     <string name="pref_vk_type_numbers">Numbers</string>

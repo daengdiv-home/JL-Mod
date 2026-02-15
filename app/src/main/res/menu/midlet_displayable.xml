@@ -44,9 +44,6 @@
                     android:id="@+id/action_hide_buttons"
                     android:title="@string/hide_buttons" />
                 <item
-                    android:id="@+id/action_joystick_mode"
-                    android:title="@string/joystick_mode" />
-                <item
                     android:id="@+id/action_joystick_mapping"
                     android:title="@string/joystick_mapping" />
             </menu>

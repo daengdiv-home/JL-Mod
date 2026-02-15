@@ -1,0 +1,115 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag name (e.g. v1.0.0)'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Decode Keystore
+        env:
+          ENCODED_KEYSTORE: ${{ secrets.SIGNING_KEY }}
+          ENCODED_PROPS: ${{ secrets.KEYSTORE_PROPERTIES }}
+        run: |
+          if [ -n "$ENCODED_PROPS" ]; then
+            echo "$ENCODED_KEYSTORE" | base64 -di > keystore.jks
+            echo "$ENCODED_PROPS" | base64 -di > keystore.properties
+          else
+            echo "No signing key configured, using debug signing"
+            keytool -genkeypair -v -keystore debug.keystore \
+              -alias debug -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass android -keypass android \
+              -dname "CN=Debug,O=Debug,L=Debug,ST=Debug,C=US"
+            cat > keystore.properties <<EOF
+          storeFile=../debug.keystore
+          storePassword=android
+          keyAlias=debug
+          keyPassword=android
+          EOF
+          fi
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Emulator APK
+        run: ./gradlew assembleEmulatorRelease
+
+      - name: Build Midlet APK
+        run: ./gradlew assembleMidletDebug
+
+      - name: Prepare symbols
+        run: |
+          mkdir -p artifact/mapping
+          if ls app/build/outputs/native-debug-symbols/**/* 1>/dev/null 2>&1; then
+            mv app/build/outputs/native-debug-symbols/**/* artifact/
+          fi
+          if ls app/build/outputs/mapping/**/* 1>/dev/null 2>&1; then
+            mv app/build/outputs/mapping/**/* artifact/mapping/
+          fi
+          (cd artifact && zip -r "$OLDPWD/symbols.zip" .)
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          elif [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            TAG="${{ github.event.inputs.release_tag }}"
+          else
+            TAG="build-$(date +'%Y%m%d-%H%M%S')"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Using tag: $TAG"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: "Release ${{ steps.tag.outputs.tag }}"
+          draft: true
+          generate_release_notes: true
+          files: |
+            app/build/outputs/apk/**/*.apk
+            symbols.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Emulator APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: "JL-Mod-Emulator-${{ steps.tag.outputs.tag }}"
+          path: app/build/outputs/apk/emulator/release/*.apk
+
+      - name: Upload Midlet APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: "JL-Mod-Midlet-${{ steps.tag.outputs.tag }}"
+          path: app/build/outputs/apk/midlet/debug/*.apk
+
+      - name: Upload Symbols artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: "Symbols-${{ steps.tag.outputs.tag }}"
+          path: artifact

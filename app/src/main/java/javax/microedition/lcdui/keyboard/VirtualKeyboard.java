@@ -81,6 +81,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	private static final int TYPE_ARR_NUM = 4;
 	private static final int TYPE_NUMBERS = 5;
 	private static final int TYPE_ARROWS = 6;
+	private static final int TYPE_JOYSTICK = 7;
 
 	private static final float PHONE_KEY_ROWS = 5;
 	private static final float PHONE_KEY_SCALE_X = 2.0f;
@@ -191,8 +192,8 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	private float snapRadius;
 	private int layoutVariant;
 
-	// Joystick mode fields
-	private boolean joystickMode = false;
+	// Joystick fields
+	private boolean joystickVisible = true;
 	private int joystickKeyUp = Canvas.KEY_UP;
 	private int joystickKeyDown = Canvas.KEY_DOWN;
 	private int joystickKeyLeft = Canvas.KEY_LEFT;
@@ -215,7 +216,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	// Track which joystick directions are currently pressed
 	private boolean jsUp, jsDown, jsLeft, jsRight;
 
-	private static final String PREF_JOYSTICK_MODE = "joystick_mode";
+	private static final String PREF_JOYSTICK_VISIBLE = "joystick_visible";
 	private static final String PREF_JOYSTICK_X = "joystick_x";
 	private static final String PREF_JOYSTICK_Y = "joystick_y";
 	private static final String PREF_JOYSTICK_RADIUS = "joystick_radius";
@@ -283,13 +284,33 @@ public class VirtualKeyboard implements Overlay, Runnable {
 
 		// Load joystick settings
 		loadJoystickSettings();
+		if (isJoystick()) {
+			initJoystickPosition();
+		}
+	}
+
+	private void initJoystickPosition() {
+		float sw = screen != null ? screen.width() : ContextHolder.getDisplayWidth();
+		float sh = screen != null ? screen.height() : ContextHolder.getDisplayHeight();
+		if (joystickCenterX < 0 || joystickCenterY < 0
+				|| joystickCenterX - joystickRadius < -joystickRadius * 0.5f
+				|| joystickCenterY - joystickRadius < -joystickRadius * 0.5f
+				|| joystickCenterX + joystickRadius > sw + joystickRadius * 0.5f
+				|| joystickCenterY + joystickRadius > sh + joystickRadius * 0.5f) {
+			joystickCenterX = joystickRadius + 20;
+			joystickCenterY = sh - joystickRadius - 20;
+		}
+		joystickThumbX = joystickCenterX;
+		joystickThumbY = joystickCenterY;
+		joystickThumbRadius = joystickRadius * 0.35f;
+		updateJoystickRect();
 	}
 
 	private void loadJoystickSettings() {
 		SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(
 				ContextHolder.getAppContext());
 		String prefix = settings.dir.getAbsolutePath();
-		joystickMode = prefs.getBoolean(prefix + PREF_JOYSTICK_MODE, false);
+		joystickVisible = prefs.getBoolean(prefix + PREF_JOYSTICK_VISIBLE, true);
 		joystickKeyUp = prefs.getInt(prefix + PREF_JOYSTICK_KEY_UP, Canvas.KEY_UP);
 		joystickKeyDown = prefs.getInt(prefix + PREF_JOYSTICK_KEY_DOWN, Canvas.KEY_DOWN);
 		joystickKeyLeft = prefs.getInt(prefix + PREF_JOYSTICK_KEY_LEFT, Canvas.KEY_LEFT);
@@ -306,7 +327,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 				ContextHolder.getAppContext());
 		String prefix = settings.dir.getAbsolutePath();
 		prefs.edit()
-				.putBoolean(prefix + PREF_JOYSTICK_MODE, joystickMode)
+				.putBoolean(prefix + PREF_JOYSTICK_VISIBLE, joystickVisible)
 				.putInt(prefix + PREF_JOYSTICK_KEY_UP, joystickKeyUp)
 				.putInt(prefix + PREF_JOYSTICK_KEY_DOWN, joystickKeyDown)
 				.putInt(prefix + PREF_JOYSTICK_KEY_LEFT, joystickKeyLeft)
@@ -317,48 +338,8 @@ public class VirtualKeyboard implements Overlay, Runnable {
 				.apply();
 	}
 
-	// Joystick mode accessors
-	public boolean isJoystickMode() {
-		return joystickMode;
-	}
-
-	public void setJoystickMode(boolean enabled) {
-		joystickMode = enabled;
-		if (enabled) {
-			// Hide D-pad keys when joystick is active
-			keypad[KEY_UP].visible = false;
-			keypad[KEY_DOWN].visible = false;
-			keypad[KEY_LEFT].visible = false;
-			keypad[KEY_RIGHT].visible = false;
-			keypad[KEY_UP_LEFT].visible = false;
-			keypad[KEY_UP_RIGHT].visible = false;
-			keypad[KEY_DOWN_LEFT].visible = false;
-			keypad[KEY_DOWN_RIGHT].visible = false;
-			keypad[KEY_FIRE].visible = false;
-			keypad[KEY_A].visible = false;
-			keypad[KEY_B].visible = false;
-			// Set default joystick position if not set
-			if (screen != null && (joystickCenterX < 0 || joystickCenterY < 0)) {
-				joystickCenterX = joystickRadius + 20;
-				joystickCenterY = screen.height() - joystickRadius - 20;
-			}
-		} else {
-			// Restore D-pad keys
-			resetLayout(layoutVariant);
-			if (screen != null) {
-				for (int group = 0; group < keyScaleGroups.length; group++) {
-					resizeKeyGroup(group);
-				}
-				snapKeys();
-			}
-		}
-		joystickThumbX = joystickCenterX;
-		joystickThumbY = joystickCenterY;
-		updateJoystickRect();
-		saveJoystickSettings();
-		if (overlayView != null) {
-			overlayView.postInvalidate();
-		}
+	public boolean isJoystick() {
+		return layoutVariant == TYPE_JOYSTICK;
 	}
 
 	public int getJoystickKeyUp() {
@@ -625,6 +606,53 @@ public class VirtualKeyboard implements Overlay, Runnable {
 				setSnap(KEY_D, KEY_DOWN_RIGHT, RectSnap.EXT_EAST, false);
 				setSnap(KEY_MENU, SCREEN, RectSnap.INT_NORTHEAST, false);
 			}
+			case TYPE_JOYSTICK -> {
+				Arrays.fill(keyScales, 1);
+
+				// Joystick replaces D-pad (drawn separately via paintJoystick)
+				// Soft keys at bottom corners
+				setSnap(KEY_SOFT_LEFT, SCREEN, RectSnap.INT_SOUTHWEST, true);
+				setSnap(KEY_SOFT_RIGHT, SCREEN, RectSnap.INT_SOUTHEAST, true);
+
+				// Bottom row: *, 0, # built leftward from soft_right
+				setSnap(KEY_POUND, KEY_SOFT_RIGHT, RectSnap.EXT_NORTH, true);
+				setSnap(KEY_NUM0, KEY_POUND, RectSnap.EXT_WEST, true);
+				setSnap(KEY_STAR, KEY_NUM0, RectSnap.EXT_WEST, true);
+
+				// Fire above center of bottom row
+				setSnap(KEY_FIRE, KEY_NUM0, RectSnap.EXT_NORTH, true);
+
+				// Keys 1,3 diagonal above Fire (quarter-arc shape)
+				setSnap(KEY_NUM1, KEY_FIRE, RectSnap.EXT_NORTHWEST, true);
+				setSnap(KEY_NUM3, KEY_FIRE, RectSnap.EXT_NORTHEAST, true);
+
+				// Keys 7,9 above 1,3
+				setSnap(KEY_NUM7, KEY_NUM1, RectSnap.EXT_NORTH, true);
+				setSnap(KEY_NUM9, KEY_NUM3, RectSnap.EXT_NORTH, true);
+
+				// Hide all other keys (snap to SCREEN so they don't interfere)
+				setSnap(KEY_NUM2, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_NUM4, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_NUM5, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_NUM6, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_NUM8, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_UP, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_DOWN, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_LEFT, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_RIGHT, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_UP_LEFT, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_UP_RIGHT, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_DOWN_LEFT, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_DOWN_RIGHT, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_A, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_B, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_C, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_D, SCREEN, RectSnap.INT_NORTH, false);
+				setSnap(KEY_MENU, SCREEN, RectSnap.INT_NORTH, false);
+
+				// Initialize joystick position
+				initJoystickPosition();
+			}
 		}
 	}
 
@@ -854,17 +882,25 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	}
 
 	public String[] getKeyNames() {
-		String[] names = new String[KEYBOARD_SIZE];
+		int extra = isJoystick() ? 1 : 0;
+		String[] names = new String[KEYBOARD_SIZE + extra];
 		for (int i = 0; i < KEYBOARD_SIZE; i++) {
 			names[i] = keypad[i].label;
+		}
+		if (extra > 0) {
+			names[KEYBOARD_SIZE] = "Joystick";
 		}
 		return names;
 	}
 
 	public boolean[] getKeysVisibility() {
-		boolean[] states = new boolean[KEYBOARD_SIZE];
+		int extra = isJoystick() ? 1 : 0;
+		boolean[] states = new boolean[KEYBOARD_SIZE + extra];
 		for (int i = 0; i < KEYBOARD_SIZE; i++) {
 			states[i] = !keypad[i].visible;
+		}
+		if (extra > 0) {
+			states[KEYBOARD_SIZE] = !joystickVisible;
 		}
 		return states;
 	}
@@ -873,6 +909,41 @@ public class VirtualKeyboard implements Overlay, Runnable {
 		for (int i = 0; i < KEYBOARD_SIZE; i++) {
 			keypad[i].visible = !states[i];
 		}
+		if (isJoystick() && states.length > KEYBOARD_SIZE) {
+			joystickVisible = !states[KEYBOARD_SIZE];
+			saveJoystickSettings();
+		}
+		overlayView.postInvalidate();
+	}
+
+	public void resetKeyPositions(boolean[] selected) {
+		if (screen == null) return;
+		float centerX = screen.centerX();
+		float centerY = screen.centerY();
+		for (int i = 0; i < KEYBOARD_SIZE && i < selected.length; i++) {
+			if (selected[i]) {
+				VirtualKey key = keypad[i];
+				key.snapOrigin = SCREEN;
+				key.snapMode = RectSnap.NO_SNAP;
+				float kw = key.rect.width();
+				float kh = key.rect.height();
+				key.rect.set(centerX - kw / 2, centerY - kh / 2,
+						centerX + kw / 2, centerY + kh / 2);
+				key.snapOffset.set(centerX - screen.centerX(), centerY - screen.centerY());
+				key.visible = true;
+			}
+		}
+		// Reset joystick position if selected
+		if (isJoystick() && selected.length > KEYBOARD_SIZE && selected[KEYBOARD_SIZE]) {
+			joystickCenterX = centerX;
+			joystickCenterY = centerY;
+			joystickThumbX = joystickCenterX;
+			joystickThumbY = joystickCenterY;
+			updateJoystickRect();
+			joystickVisible = true;
+			saveJoystickSettings();
+		}
+		snapKeys();
 		overlayView.postInvalidate();
 	}
 
@@ -1022,15 +1093,8 @@ public class VirtualKeyboard implements Overlay, Runnable {
 			handler.postDelayed(this, delay);
 		}
 		// Initialize joystick position if needed
-		if (joystickMode) {
-			if (joystickCenterX < 0 || joystickCenterY < 0) {
-				joystickCenterX = joystickRadius + 20;
-				joystickCenterY = screen.height() - joystickRadius - 20;
-			}
-			joystickThumbX = joystickCenterX;
-			joystickThumbY = joystickCenterY;
-			joystickThumbRadius = joystickRadius * 0.35f;
-			updateJoystickRect();
+		if (isJoystick()) {
+			initJoystickPosition();
 		}
 	}
 
@@ -1047,13 +1111,14 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	@Override
 	public void paint(CanvasWrapper g) {
 		if (visible && (layoutEditMode != LAYOUT_EOF || settings.vkAlpha > 0)) {
-			for (VirtualKey key : keypad) {
+			for (int i = 0; i < keypad.length; i++) {
+				VirtualKey key = keypad[i];
 				if (key.visible) {
 					key.paint(g);
 				}
 			}
 			// Draw joystick
-			if (joystickMode) {
+			if (isJoystick() && joystickVisible) {
 				paintJoystick(g);
 			}
 		}
@@ -1127,7 +1192,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 					return false;
 				}
 				// Check joystick first
-				if (joystickMode && joystickPointer < 0) {
+				if (isJoystick() && joystickVisible && joystickPointer < 0) {
 					float dx = x - joystickCenterX;
 					float dy = y - joystickCenterY;
 					if (dx * dx + dy * dy <= joystickRadius * joystickRadius) {
@@ -1139,7 +1204,9 @@ public class VirtualKeyboard implements Overlay, Runnable {
 						return true;
 					}
 				}
-				for (VirtualKey key : keypad) {
+				for (int i = 0; i < keypad.length; i++) {
+					VirtualKey key = keypad[i];
+					if (!key.visible) continue;
 					if (key.contains(x, y)) {
 						vibrate();
 						associatedKeys[pointer] = key;
@@ -1151,7 +1218,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 			}
 			case LAYOUT_KEYS -> {
 				// Check joystick drag/resize in edit mode
-				if (joystickMode) {
+				if (isJoystick()) {
 					float handleSize = joystickRadius * 0.2f;
 					float hx = joystickCenterX + joystickRadius - handleSize;
 					float hy = joystickCenterY + joystickRadius - handleSize;
@@ -1187,7 +1254,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 			}
 			case LAYOUT_SCALES -> {
 				// Check joystick resize in scale mode
-				if (joystickMode) {
+				if (isJoystick()) {
 					float dx = x - joystickCenterX;
 					float dy = y - joystickCenterY;
 					if (dx * dx + dy * dy <= joystickRadius * joystickRadius) {
@@ -1233,7 +1300,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 					return false;
 				}
 				// Handle joystick drag
-				if (joystickMode && joystickActive && pointer == joystickPointer) {
+				if (isJoystick() && joystickActive && pointer == joystickPointer) {
 					handleJoystickMove(x, y);
 					overlayView.postInvalidate();
 					return true;
@@ -1368,7 +1435,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 				return false;
 			}
 			// Handle joystick release
-			if (joystickMode && joystickActive && pointer == joystickPointer) {
+			if (isJoystick() && joystickActive && pointer == joystickPointer) {
 				releaseJoystick();
 				overlayView.postInvalidate();
 				return true;

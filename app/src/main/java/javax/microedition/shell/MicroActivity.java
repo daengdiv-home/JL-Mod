@@ -515,10 +515,6 @@ public class MicroActivity extends AppCompatActivity {
 			showSetLayoutDialog();
 		} else if (id == R.id.action_hide_buttons) {
 			showHideButtonDialog();
-		} else if (id == R.id.action_joystick_mode) {
-			boolean newMode = !vk.isJoystickMode();
-			vk.setJoystickMode(newMode);
-			Toast.makeText(this, newMode ? R.string.joystick_mode_enabled : R.string.joystick_mode_disabled, Toast.LENGTH_SHORT).show();
 		} else if (id == R.id.action_joystick_mapping) {
 			showJoystickMappingDialog();
 		}
@@ -568,12 +564,17 @@ public class MicroActivity extends AppCompatActivity {
 						vk.setKeysVisibility(changed);
 						showSaveVkAlert(true);
 					}
+				})
+				.setNeutralButton(R.string.reset_position, (dialog, which) -> {
+					// Reset position of checked (hidden) items to center
+					vk.resetKeyPositions(changed);
+					showSaveVkAlert(true);
 				}).show();
 	}
 
 	private void showJoystickMappingDialog() {
 		final VirtualKeyboard vk = ContextHolder.getVk();
-		if (vk == null || !vk.isJoystickMode()) {
+		if (vk == null || !vk.isJoystick()) {
 			Toast.makeText(this, "Joystick mode is not active", Toast.LENGTH_SHORT).show();
 			return;
 		}
