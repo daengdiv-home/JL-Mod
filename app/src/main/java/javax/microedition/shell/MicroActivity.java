@@ -515,6 +515,12 @@ public class MicroActivity extends AppCompatActivity {
 			showSetLayoutDialog();
 		} else if (id == R.id.action_hide_buttons) {
 			showHideButtonDialog();
+		} else if (id == R.id.action_joystick_mode) {
+			boolean newMode = !vk.isJoystickMode();
+			vk.setJoystickMode(newMode);
+			Toast.makeText(this, newMode ? R.string.joystick_mode_enabled : R.string.joystick_mode_disabled, Toast.LENGTH_SHORT).show();
+		} else if (id == R.id.action_joystick_mapping) {
+			showJoystickMappingDialog();
 		}
 	}
 
@@ -565,6 +571,86 @@ public class MicroActivity extends AppCompatActivity {
 				}).show();
 	}
 
+	private void showJoystickMappingDialog() {
+		final VirtualKeyboard vk = ContextHolder.getVk();
+		if (vk == null || !vk.isJoystickMode()) {
+			Toast.makeText(this, "Joystick mode is not active", Toast.LENGTH_SHORT).show();
+			return;
+		}
+
+		// Available keys for mapping
+		final int[] keyCodes = {
+				Canvas.KEY_UP, Canvas.KEY_DOWN, Canvas.KEY_LEFT, Canvas.KEY_RIGHT,
+				Canvas.KEY_FIRE,
+				Canvas.KEY_NUM0, Canvas.KEY_NUM1, Canvas.KEY_NUM2, Canvas.KEY_NUM3,
+				Canvas.KEY_NUM4, Canvas.KEY_NUM5, Canvas.KEY_NUM6, Canvas.KEY_NUM7,
+				Canvas.KEY_NUM8, Canvas.KEY_NUM9,
+				Canvas.KEY_STAR, Canvas.KEY_POUND
+		};
+		final String[] keyLabels = {
+				"↑ Up", "↓ Down", "← Left", "→ Right",
+				"Fire",
+				"0", "1", "2", "3",
+				"4", "5", "6", "7",
+				"8", "9",
+				"* Star", "# Pound"
+		};
+
+		// Current mappings
+		final int[] mappings = {
+				vk.getJoystickKeyUp(),
+				vk.getJoystickKeyDown(),
+				vk.getJoystickKeyLeft(),
+				vk.getJoystickKeyRight()
+		};
+		final int[] dirStringIds = {
+				R.string.joystick_map_up,
+				R.string.joystick_map_down,
+				R.string.joystick_map_left,
+				R.string.joystick_map_right
+		};
+
+		// Find current selection indices
+		final String[] directionItems = new String[4];
+		for (int i = 0; i < 4; i++) {
+			String current = "?";
+			for (int j = 0; j < keyCodes.length; j++) {
+				if (keyCodes[j] == mappings[i]) {
+					current = keyLabels[j];
+					break;
+				}
+			}
+			directionItems[i] = getString(dirStringIds[i]) + ": " + current;
+		}
+
+		new AlertDialog.Builder(this)
+				.setTitle(R.string.joystick_mapping)
+				.setItems(directionItems, (dialog, which) -> {
+					// Find current index for this direction
+					int currentIdx = 0;
+					for (int j = 0; j < keyCodes.length; j++) {
+						if (keyCodes[j] == mappings[which]) {
+							currentIdx = j;
+							break;
+						}
+					}
+					final int dirIndex = which;
+					new AlertDialog.Builder(this)
+							.setTitle(dirStringIds[dirIndex])
+							.setSingleChoiceItems(keyLabels, currentIdx, null)
+							.setPositiveButton(android.R.string.ok, (d2, w2) -> {
+								int selected = ((AlertDialog) d2).getListView().getCheckedItemPosition();
+								mappings[dirIndex] = keyCodes[selected];
+								vk.setJoystickKeyMappings(mappings[0], mappings[1], mappings[2], mappings[3]);
+								showSaveVkAlert(false);
+							})
+							.setNegativeButton(android.R.string.cancel, null)
+							.show();
+				})
+				.setNegativeButton(android.R.string.cancel, null)
+				.show();
+	}
+
 	private void showSaveVkAlert(boolean keepScreenPreferred) {
 		AlertDialog.Builder builder = new AlertDialog.Builder(this);
 		builder.setTitle(R.string.CONFIRMATION_REQUIRED);
@@ -588,11 +674,11 @@ public class MicroActivity extends AppCompatActivity {
 				if (cb.isChecked()) {
 					vk.saveScreenParams();
 				}
-				vk.onLayoutChanged(VirtualKeyboard.TYPE_CUSTOM);
+				vk.onLayoutChanged(vk.getLayout());
 			});
 		} else {
 			dialog.setButton(dialog.BUTTON_POSITIVE, getText(android.R.string.yes), (d, w) ->
-					ContextHolder.getVk().onLayoutChanged(VirtualKeyboard.TYPE_CUSTOM));
+					ContextHolder.getVk().onLayoutChanged(ContextHolder.getVk().getLayout()));
 		}
 		dialog.show();
 	}

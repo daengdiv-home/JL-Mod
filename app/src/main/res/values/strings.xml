@@ -55,6 +55,14 @@
     <string name="help">Help</string>
     <string name="help_message">&#8226; Enabling filtering in some cases can greatly reduce performance. Disable this option if game is too slow.&lt;BR>&#8226; Image flickering issues can be fixed by enabling the "Immediate processing mode" option.</string>
     <string name="hide_buttons">Hide buttons</string>
+    <string name="joystick_mapping">Joystick mapping</string>
+    <string name="joystick_map_up">Up</string>
+    <string name="joystick_map_down">Down</string>
+    <string name="joystick_map_left">Left</string>
+    <string name="joystick_map_right">Right</string>
+    <string name="joystick_mode">Joystick mode</string>
+    <string name="joystick_mode_enabled">Joystick enabled</string>
+    <string name="joystick_mode_disabled">Joystick disabled</string>
     <string name="identity_filter">Fast (no filter)</string>
     <string name="install">install</string>
     <string name="install_done">Application successfully installed!</string>
