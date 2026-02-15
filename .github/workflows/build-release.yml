@@ -44,12 +44,12 @@ jobs:
                 -storepass android -keypass android \
                 -dname "CN=Debug,O=Debug,L=Debug,ST=Debug,C=US"
             fi
-            cat > keystore.properties <<EOF
-          storeFile=../debug.keystore
-          storePassword=android
-          keyAlias=debug
-          keyPassword=android
-          EOF
+            cat > keystore.properties << 'EOF'
+storeFile=debug.keystore
+storePassword=android
+keyAlias=debug
+keyPassword=android
+EOF
           fi
 
       - name: Grant execute permission for gradlew
