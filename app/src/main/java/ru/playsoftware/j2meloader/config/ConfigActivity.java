@@ -603,6 +603,7 @@ public class ConfigActivity extends AppCompatActivity implements View.OnClickLis
 		binding.cxIsShowKeyboard.setChecked(showVk);
 		binding.groupVkConfig.setVisibility(showVk ? View.VISIBLE : View.GONE);
 		binding.cxVKFeedback.setChecked(params.vkFeedback);
+		binding.cxVKHaptic.setChecked(params.vkHaptic);
 		binding.cxVKForceOpacity.setChecked(params.vkForceOpacity);
 		binding.cxTouchInput.setChecked(params.touchInput);
 		int fpsLimit = params.fpsLimit;
@@ -700,6 +701,7 @@ public class ConfigActivity extends AppCompatActivity implements View.OnClickLis
 			params.fontAA = binding.cxFontAA.isChecked();
 			params.showKeyboard = binding.cxIsShowKeyboard.isChecked();
 			params.vkFeedback = binding.cxVKFeedback.isChecked();
+			params.vkHaptic = binding.cxVKHaptic.isChecked();
 			params.vkForceOpacity = binding.cxVKForceOpacity.isChecked();
 			params.touchInput = binding.cxTouchInput.isChecked();
 

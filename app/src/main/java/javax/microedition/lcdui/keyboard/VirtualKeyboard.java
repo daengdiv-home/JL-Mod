@@ -272,14 +272,16 @@ public class VirtualKeyboard implements Overlay, Runnable {
 		loadJoystickSettings();
 
 		resetLayout(layoutVariant);
-		if (layoutVariant == TYPE_CUSTOM) {
+		if (layoutVariant == TYPE_CUSTOM || layoutVariant == TYPE_JOYSTICK) {
 			try {
 				readLayout();
 			} catch (IOException e) {
 				e.printStackTrace();
-				resetLayout(TYPE_NUM_ARR);
-				layoutVariant = TYPE_NUM_ARR;
-				saveLayout();
+				if (layoutVariant == TYPE_CUSTOM) {
+					resetLayout(TYPE_NUM_ARR);
+					layoutVariant = TYPE_NUM_ARR;
+					saveLayout();
+				}
 			}
 		}
 		HandlerThread thread = new HandlerThread("MidletVirtualKeyboard");
@@ -669,13 +671,15 @@ public class VirtualKeyboard implements Overlay, Runnable {
 
 	public void setLayout(int variant) {
 		resetLayout(variant);
-		if (variant == TYPE_CUSTOM) {
+		if (variant == TYPE_CUSTOM || variant == TYPE_JOYSTICK) {
 			try {
 				readLayout();
 			} catch (IOException ioe) {
 				ioe.printStackTrace();
-				resetLayout(layoutVariant);
-				return;
+				if (variant == TYPE_CUSTOM) {
+					resetLayout(layoutVariant);
+					return;
+				}
 			}
 		}
 		layoutVariant = variant;
@@ -693,7 +697,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	private void saveLayout() {
 		try (RandomAccessFile raf = new RandomAccessFile(saveFile, "rw")) {
 			int variant = layoutVariant;
-			if (variant != TYPE_CUSTOM && raf.length() > 16) {
+			if (variant != TYPE_CUSTOM && variant != TYPE_JOYSTICK && raf.length() > 16) {
 				try {
 					if (raf.readInt() != LAYOUT_SIGNATURE) {
 						throw new IOException("file signature not found");
@@ -739,7 +743,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 			raf.writeInt(LAYOUT_TYPE);
 			raf.writeInt(1);
 			raf.write(variant);
-			if (variant != TYPE_CUSTOM) {
+			if (variant != TYPE_CUSTOM && variant != TYPE_JOYSTICK) {
 				raf.writeInt(LAYOUT_EOF);
 				raf.writeInt(0);
 				raf.setLength(raf.getFilePointer());
@@ -1634,7 +1638,15 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	}
 
 	private void vibrate() {
-		if (settings.vkFeedback) ContextHolder.vibrateKey(FEEDBACK_DURATION);
+		if (settings.vkHaptic) {
+			if (overlayView != null) {
+				overlayView.performHapticFeedback(
+						android.view.HapticFeedbackConstants.VIRTUAL_KEY,
+						android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+			}
+		} else if (settings.vkFeedback) {
+			ContextHolder.vibrateKey(FEEDBACK_DURATION);
+		}
 	}
 
 	public void setView(View view) {

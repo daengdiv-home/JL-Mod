@@ -136,6 +136,9 @@ public class ProfileModel {
 	@SerializedName("VirtualKeyboardFeedback")
 	public boolean vkFeedback;
 
+	@SerializedName("VirtualKeyboardHaptic")
+	public boolean vkHaptic;
+
 	@SerializedName("VirtualKeyboardDelay")
 	public int vkHideDelay;
 

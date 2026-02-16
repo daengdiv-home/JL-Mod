@@ -678,7 +678,7 @@
                 android:layout_marginTop="5dp"
                 android:background="?bg_config_card"
                 android:visibility="gone"
-                app:constraint_referenced_ids="cxVKForceOpacity,cxVKFeedback,tfVKBack,tfVKSelFore,textView7,cmdVKSelFore,cmdVKFore,tfVKOutline,cmdVKBack,sbVKAlpha,cmdVKSelBack,tfVKHideDelay,textView13,spButtonsShape,tvOpacity,cmdVKOutline,textView12,tfVKFore,tfVKSelBack"
+                app:constraint_referenced_ids="cxVKForceOpacity,cxVKFeedback,cxVKHaptic,tfVKBack,tfVKSelFore,textView7,cmdVKSelFore,cmdVKFore,tfVKOutline,cmdVKBack,sbVKAlpha,cmdVKSelBack,tfVKHideDelay,textView13,spButtonsShape,tvOpacity,cmdVKOutline,textView12,tfVKFore,tfVKSelBack"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
@@ -743,6 +743,19 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@+id/textView7" />
 
+            <!-- Modern haptic feedback -->
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/cxVKHaptic"
+                style="@style/SwitchStyle"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/height_config_row"
+                android:layout_marginHorizontal="5dp"
+                android:checked="false"
+                android:text="@string/PREF_VK_HAPTIC"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/cxVKFeedback" />
+
             <!-- Keys opacity -->
             <TextView
                 android:id="@+id/tvOpacity"
@@ -757,7 +770,7 @@
                 app:layout_constrainedWidth="true"
                 app:layout_constraintEnd_toStartOf="@+id/barrierInputConfig"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/cxVKFeedback"
+                app:layout_constraintTop_toBottomOf="@+id/cxVKHaptic"
                 app:layout_constraintWidth_min="wrap" />
 
             <SeekBar
@@ -770,7 +783,7 @@
                 app:layout_constraintBottom_toBottomOf="@id/tvOpacity"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toEndOf="@+id/barrierInputConfig"
-                app:layout_constraintTop_toBottomOf="@+id/cxVKFeedback" />
+                app:layout_constraintTop_toBottomOf="@+id/cxVKHaptic" />
 
             <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/cxVKForceOpacity"
