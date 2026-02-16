@@ -267,6 +267,10 @@ public class VirtualKeyboard implements Overlay, Runnable {
 				layoutVariant = TYPE_NUM_ARR;
 			}
 		}
+
+		// Load joystick settings BEFORE resetLayout so joystickRadius is available
+		loadJoystickSettings();
+
 		resetLayout(layoutVariant);
 		if (layoutVariant == TYPE_CUSTOM) {
 			try {
@@ -282,8 +286,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 		thread.start();
 		handler = new Handler(thread.getLooper());
 
-		// Load joystick settings
-		loadJoystickSettings();
+		// Initialize joystick position after settings are loaded
 		if (isJoystick()) {
 			initJoystickPosition();
 		}
