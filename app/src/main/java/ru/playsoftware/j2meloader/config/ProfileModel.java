@@ -157,6 +157,30 @@ public class ProfileModel {
 	@SerializedName("VirtualKeyboardColorOutline")
 	public int vkOutlineColor;
 
+	@SerializedName("JoystickVisible")
+	public Boolean joystickVisible;
+
+	@SerializedName("JoystickX")
+	public float joystickX;
+
+	@SerializedName("JoystickY")
+	public float joystickY;
+
+	@SerializedName("JoystickRadius")
+	public float joystickRadius;
+
+	@SerializedName("JoystickKeyUp")
+	public int joystickKeyUp;
+
+	@SerializedName("JoystickKeyDown")
+	public int joystickKeyDown;
+
+	@SerializedName("JoystickKeyLeft")
+	public int joystickKeyLeft;
+
+	@SerializedName("JoystickKeyRight")
+	public int joystickKeyRight;
+
 	@SerializedName("Layout")
 	public int keyCodesLayout;
 
@@ -208,6 +232,15 @@ public class ProfileModel {
 		vkBgColorSelected = 0x000080;
 		vkFgColorSelected = 0xFFFFFF;
 		vkOutlineColor = 0xFFFFFF;
+
+		joystickVisible = Boolean.TRUE;
+		joystickX = -1;
+		joystickY = -1;
+		joystickKeyUp = -1;   // Canvas.KEY_UP
+		joystickKeyDown = -2; // Canvas.KEY_DOWN
+		joystickKeyLeft = -3; // Canvas.KEY_LEFT
+		joystickKeyRight = -4; // Canvas.KEY_RIGHT
+
 		systemProperties = ContextHolder.getAssetAsString("defaults/system.props");
 	}
 }

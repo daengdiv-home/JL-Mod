@@ -20,7 +20,7 @@ package javax.microedition.lcdui.keyboard;
 import static javax.microedition.lcdui.keyboard.KeyMapper.SE_KEY_SPECIAL_GAMING_A;
 import static javax.microedition.lcdui.keyboard.KeyMapper.SE_KEY_SPECIAL_GAMING_B;
 
-import android.content.SharedPreferences;
+import android.os.Build;
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.os.Handler;
@@ -29,7 +29,6 @@ import android.util.Log;
 import android.view.View;
 
 import androidx.annotation.NonNull;
-import androidx.preference.PreferenceManager;
 
 import java.io.DataInputStream;
 import java.io.File;
@@ -73,6 +72,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	private static final int SHAPE_OVAL = 0;
 	private static final int SHAPE_RECT = 1;
 	public static final int SHAPE_ROUND_RECT = 2;
+	public static final int SHAPE_NOKIA = 3;
 
 	public static final int TYPE_CUSTOM = 0;
 	private static final int TYPE_PHONE = 1;
@@ -216,14 +216,6 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	// Track which joystick directions are currently pressed
 	private boolean jsUp, jsDown, jsLeft, jsRight;
 
-	private static final String PREF_JOYSTICK_VISIBLE = "joystick_visible";
-	private static final String PREF_JOYSTICK_X = "joystick_x";
-	private static final String PREF_JOYSTICK_Y = "joystick_y";
-	private static final String PREF_JOYSTICK_RADIUS = "joystick_radius";
-	private static final String PREF_JOYSTICK_KEY_UP = "joystick_key_up";
-	private static final String PREF_JOYSTICK_KEY_DOWN = "joystick_key_down";
-	private static final String PREF_JOYSTICK_KEY_LEFT = "joystick_key_left";
-	private static final String PREF_JOYSTICK_KEY_RIGHT = "joystick_key_right";
 
 	public VirtualKeyboard(ProfileModel settings) {
 		this.settings = settings;
@@ -312,35 +304,28 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	}
 
 	private void loadJoystickSettings() {
-		SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(
-				ContextHolder.getAppContext());
-		String prefix = settings.dir.getAbsolutePath();
-		joystickVisible = prefs.getBoolean(prefix + PREF_JOYSTICK_VISIBLE, true);
-		joystickKeyUp = prefs.getInt(prefix + PREF_JOYSTICK_KEY_UP, Canvas.KEY_UP);
-		joystickKeyDown = prefs.getInt(prefix + PREF_JOYSTICK_KEY_DOWN, Canvas.KEY_DOWN);
-		joystickKeyLeft = prefs.getInt(prefix + PREF_JOYSTICK_KEY_LEFT, Canvas.KEY_LEFT);
-		joystickKeyRight = prefs.getInt(prefix + PREF_JOYSTICK_KEY_RIGHT, Canvas.KEY_RIGHT);
+		joystickVisible = settings.joystickVisible == null || settings.joystickVisible;
+		joystickKeyUp = settings.joystickKeyUp != 0 ? settings.joystickKeyUp : Canvas.KEY_UP;
+		joystickKeyDown = settings.joystickKeyDown != 0 ? settings.joystickKeyDown : Canvas.KEY_DOWN;
+		joystickKeyLeft = settings.joystickKeyLeft != 0 ? settings.joystickKeyLeft : Canvas.KEY_LEFT;
+		joystickKeyRight = settings.joystickKeyRight != 0 ? settings.joystickKeyRight : Canvas.KEY_RIGHT;
 		float defaultRadius = Math.min(ContextHolder.getDisplayWidth(), ContextHolder.getDisplayHeight()) / 5.0f;
-		joystickRadius = prefs.getFloat(prefix + PREF_JOYSTICK_RADIUS, defaultRadius);
-		joystickCenterX = prefs.getFloat(prefix + PREF_JOYSTICK_X, -1);
-		joystickCenterY = prefs.getFloat(prefix + PREF_JOYSTICK_Y, -1);
+		joystickRadius = settings.joystickRadius > 0 ? settings.joystickRadius : defaultRadius;
+		joystickCenterX = settings.joystickX != 0 ? settings.joystickX : -1;
+		joystickCenterY = settings.joystickY != 0 ? settings.joystickY : -1;
 		joystickThumbRadius = joystickRadius * 0.35f;
 	}
 
 	private void saveJoystickSettings() {
-		SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(
-				ContextHolder.getAppContext());
-		String prefix = settings.dir.getAbsolutePath();
-		prefs.edit()
-				.putBoolean(prefix + PREF_JOYSTICK_VISIBLE, joystickVisible)
-				.putInt(prefix + PREF_JOYSTICK_KEY_UP, joystickKeyUp)
-				.putInt(prefix + PREF_JOYSTICK_KEY_DOWN, joystickKeyDown)
-				.putInt(prefix + PREF_JOYSTICK_KEY_LEFT, joystickKeyLeft)
-				.putInt(prefix + PREF_JOYSTICK_KEY_RIGHT, joystickKeyRight)
-				.putFloat(prefix + PREF_JOYSTICK_RADIUS, joystickRadius)
-				.putFloat(prefix + PREF_JOYSTICK_X, joystickCenterX)
-				.putFloat(prefix + PREF_JOYSTICK_Y, joystickCenterY)
-				.apply();
+		settings.joystickVisible = Boolean.valueOf(joystickVisible);
+		settings.joystickKeyUp = joystickKeyUp;
+		settings.joystickKeyDown = joystickKeyDown;
+		settings.joystickKeyLeft = joystickKeyLeft;
+		settings.joystickKeyRight = joystickKeyRight;
+		settings.joystickRadius = joystickRadius;
+		settings.joystickX = joystickCenterX;
+		settings.joystickY = joystickCenterY;
+		ProfilesManager.saveConfig(settings);
 	}
 
 	public boolean isJoystick() {
@@ -1443,6 +1428,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 			}
 			// Handle joystick release
 			if (isJoystick() && joystickActive && pointer == joystickPointer) {
+				vibrateRelease();
 				releaseJoystick();
 				overlayView.postInvalidate();
 				return true;
@@ -1649,6 +1635,18 @@ public class VirtualKeyboard implements Overlay, Runnable {
 		}
 	}
 
+	private void vibrateRelease() {
+		if (settings.vkHaptic) {
+			if (overlayView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+				overlayView.performHapticFeedback(
+						android.view.HapticFeedbackConstants.VIRTUAL_KEY_RELEASE,
+						android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+			}
+		} else if (settings.vkFeedback) {
+			ContextHolder.vibrateKey(FEEDBACK_DURATION);
+		}
+	}
+
 	public void setView(View view) {
 		overlayView = view;
 	}
@@ -1693,6 +1691,18 @@ public class VirtualKeyboard implements Overlay, Runnable {
 			case KEY_DOWN_LEFT  -> 1 << 23; // 23 Lower Left
 			default             -> 0      ;
 		};
+	}
+
+	public boolean isKeyStyle3D() {
+		return settings.vkButtonShape == SHAPE_NOKIA;
+	}
+
+	public void setKeyStyle3D(boolean enable) {
+		settings.vkButtonShape = enable ? SHAPE_NOKIA : SHAPE_ROUND_RECT;
+		ProfilesManager.saveConfig(settings);
+		if (overlayView != null) {
+			overlayView.postInvalidate();
+		}
 	}
 
 	public void saveScreenParams() {
@@ -1743,10 +1753,12 @@ public class VirtualKeyboard implements Overlay, Runnable {
 				fgColor = settings.vkFgColor;
 			}
 			int alpha = (opaque || layoutEditMode != LAYOUT_EOF ? 0xFF : settings.vkAlpha) << 24;
-			g.setFillColor((layoutEditMode != LAYOUT_EOF ? (0xFF / 3) << 24 : alpha) | bgColor);
+			int editAlpha = layoutEditMode != LAYOUT_EOF ? (0xFF / 3) << 24 : alpha;
+			g.setFillColor(editAlpha | bgColor);
 			g.setTextColor(alpha | fgColor);
 			g.setDrawColor(alpha | settings.vkOutlineColor);
 
+			float textX = rect.centerX(), textY = rect.centerY();
 			switch (settings.vkButtonShape) {
 				case SHAPE_ROUND_RECT -> {
 					g.fillRoundRect(rect, corners, corners);
@@ -1760,8 +1772,41 @@ public class VirtualKeyboard implements Overlay, Runnable {
 					g.fillArc(rect, 0, 360);
 					g.drawArc(rect, 0, 360);
 				}
+				case SHAPE_NOKIA -> {
+					int base = settings.vkBgColor;
+					float depth = Math.min(rect.width(), rect.height()) * 0.10f;
+					int shadowColor = darken(base, 0.45f);
+					int hiliteColor = lighten(base, 1.65f);
+					if (selected) {
+						// Pressed: inverted bevel — shadow on top-left, highlight on bottom-right
+						RectF tlShadow = new RectF(rect.left, rect.top, rect.right, rect.bottom);
+						g.setFillColor(editAlpha | hiliteColor);
+						g.fillRoundRect(tlShadow, corners, corners);
+						RectF brFill = new RectF(rect.left + depth, rect.top + depth, rect.right, rect.bottom);
+						g.setFillColor(editAlpha | shadowColor);
+						g.fillRoundRect(brFill, corners, corners);
+						RectF body = new RectF(rect.left + depth, rect.top + depth, rect.right - depth, rect.bottom - depth);
+						g.setFillColor(editAlpha | darken(base, 0.80f));
+						g.fillRoundRect(body, corners, corners);
+						textX = rect.centerX() + depth * 0.5f;
+						textY = rect.centerY() + depth * 0.5f;
+					} else {
+						// Raised: shadow bottom-right, highlight top-left
+						g.setFillColor(editAlpha | shadowColor);
+						g.fillRoundRect(rect, corners, corners);
+						RectF hiliteRect = new RectF(rect.left, rect.top, rect.right - depth, rect.bottom - depth);
+						g.setFillColor(editAlpha | hiliteColor);
+						g.fillRoundRect(hiliteRect, corners, corners);
+						RectF body = new RectF(rect.left + depth, rect.top + depth, rect.right - depth, rect.bottom - depth);
+						g.setFillColor(editAlpha | base);
+						g.fillRoundRect(body, corners, corners);
+					}
+					g.setDrawColor(alpha | settings.vkOutlineColor);
+					g.drawRoundRect(rect, corners, corners);
+					g.setTextColor(alpha | fgColor);
+				}
 			}
-			g.drawString(label, rect.centerX(), rect.centerY());
+			g.drawString(label, textX, textY);
 		}
 
 		@NonNull
@@ -1799,6 +1844,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 		}
 
 		public void onUp() {
+			vibrateRelease();
 			selected = false;
 			handler.removeCallbacks(this);
 			target.postKeyReleased(keyCode);
@@ -1856,6 +1902,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 		@Override
 		public void onUp() {
 			if (selected) {
+				vibrateRelease();
 				selected = false;
 				handler.removeCallbacks(this);
 				MicroActivity activity = ContextHolder.getActivity();
@@ -1874,4 +1921,21 @@ public class VirtualKeyboard implements Overlay, Runnable {
 			}
 		}
 	}
+
+	/** Scales each RGB channel by {@code factor} (clamped to [0,255]). Alpha is untouched. */
+	private static int darken(int color, float factor) {
+		int r = Math.max(0, (int) ((color >> 16 & 0xFF) * factor));
+		int g = Math.max(0, (int) ((color >> 8 & 0xFF) * factor));
+		int b = Math.max(0, (int) ((color & 0xFF) * factor));
+		return (r << 16) | (g << 8) | b;
+	}
+
+	/** Scales each RGB channel by {@code factor} (clamped to [0,255]). Alpha is untouched. */
+	private static int lighten(int color, float factor) {
+		int r = Math.min(255, (int) ((color >> 16 & 0xFF) * factor));
+		int g = Math.min(255, (int) ((color >> 8 & 0xFF) * factor));
+		int b = Math.min(255, (int) ((color & 0xFF) * factor));
+		return (r << 16) | (g << 8) | b;
+	}
 }
+

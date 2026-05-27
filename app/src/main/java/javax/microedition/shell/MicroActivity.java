@@ -428,6 +428,7 @@ public class MicroActivity extends AppCompatActivity {
 			if (vk != null) {
 				boolean visible = vk.getLayoutEditMode() != VirtualKeyboard.LAYOUT_EOF;
 				menu.findItem(R.id.action_layout_edit_finish).setVisible(visible);
+				menu.findItem(R.id.action_key_style_3d).setChecked(vk.isKeyStyle3D());
 			}
 		} else {
 			menu.setGroupVisible(R.id.action_group_canvas, false);
@@ -517,6 +518,8 @@ public class MicroActivity extends AppCompatActivity {
 			showHideButtonDialog();
 		} else if (id == R.id.action_joystick_mapping) {
 			showJoystickMappingDialog();
+		} else if (id == R.id.action_key_style_3d) {
+			vk.setKeyStyle3D(!vk.isKeyStyle3D());
 		}
 	}
 

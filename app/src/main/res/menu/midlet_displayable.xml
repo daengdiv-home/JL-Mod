@@ -46,6 +46,10 @@
                 <item
                     android:id="@+id/action_joystick_mapping"
                     android:title="@string/joystick_mapping" />
+                <item
+                    android:id="@+id/action_key_style_3d"
+                    android:title="@string/action_key_style_3d"
+                    android:checkable="true" />
             </menu>
         </item>
     </group>
