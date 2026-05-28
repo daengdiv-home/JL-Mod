@@ -120,6 +120,11 @@ public class AndroidMethodVisitor extends MethodVisitor {
 				}
 				break;
 			case "java/lang/System":
+				if (opcode == INVOKESTATIC && name.equals("currentTimeMillis")) {
+					mv.visitMethodInsn(INVOKESTATIC, "javax/microedition/shell/MidletSystem",
+							"currentTimeMillis", "()J", false);
+					return;
+				}
 				if (opcode == INVOKESTATIC && name.equals("getProperty")) {
 					mv.visitMethodInsn(opcode, "javax/microedition/shell/MidletSystem", name, desc, itf);
 					return;

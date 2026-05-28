@@ -82,6 +82,7 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	private static final int TYPE_NUMBERS = 5;
 	private static final int TYPE_ARROWS = 6;
 	private static final int TYPE_JOYSTICK = 7;
+	private static final int TYPE_DPAD_RING = 8;
 
 	private static final float PHONE_KEY_ROWS = 5;
 	private static final float PHONE_KEY_SCALE_X = 2.0f;
@@ -216,6 +217,22 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	// Track which joystick directions are currently pressed
 	private boolean jsUp, jsDown, jsLeft, jsRight;
 
+	// D-pad ring fields
+	private float dpadCenterX;
+	private float dpadCenterY;
+	/** Half-size of the outer rounded square (distance from center to edge). */
+	private float dpadHalfSize;
+	/** Thickness of the ring as a fraction of dpadHalfSize. */
+	private static final float DPAD_RING_THICKNESS = 0.35f;
+	private boolean dpadVisible = true;
+	private boolean dpadActive = false;
+	private int dpadPointer = -1;
+	private boolean dpadDragMode = false;
+	private float dpadDragOffsetX, dpadDragOffsetY;
+	private boolean dpadResizeMode = false;
+	private float dpadResizeStartDist, dpadResizeStartSize;
+	private boolean dpUp, dpDown, dpLeft, dpRight;
+
 
 	public VirtualKeyboard(ProfileModel settings) {
 		this.settings = settings;
@@ -262,9 +279,11 @@ public class VirtualKeyboard implements Overlay, Runnable {
 
 		// Load joystick settings BEFORE resetLayout so joystickRadius is available
 		loadJoystickSettings();
+		loadDpadSettings();
 
 		resetLayout(layoutVariant);
-		if (layoutVariant == TYPE_CUSTOM || layoutVariant == TYPE_JOYSTICK) {
+		if (layoutVariant == TYPE_CUSTOM || layoutVariant == TYPE_JOYSTICK
+				|| layoutVariant == TYPE_DPAD_RING) {
 			try {
 				readLayout();
 			} catch (IOException e) {
@@ -283,6 +302,9 @@ public class VirtualKeyboard implements Overlay, Runnable {
 		// Initialize joystick position after settings are loaded
 		if (isJoystick()) {
 			initJoystickPosition();
+		}
+		if (isDpadRing()) {
+			initDpadRingPosition();
 		}
 	}
 
@@ -330,6 +352,38 @@ public class VirtualKeyboard implements Overlay, Runnable {
 
 	public boolean isJoystick() {
 		return layoutVariant == TYPE_JOYSTICK;
+	}
+
+	public boolean isDpadRing() {
+		return layoutVariant == TYPE_DPAD_RING;
+	}
+
+	private void initDpadRingPosition() {
+		float sw = screen != null ? screen.width() : ContextHolder.getDisplayWidth();
+		float sh = screen != null ? screen.height() : ContextHolder.getDisplayHeight();
+		float defaultSize = Math.min(sw, sh) * 0.22f;
+		if (dpadHalfSize <= 0) dpadHalfSize = defaultSize;
+		if (dpadCenterX < dpadHalfSize || dpadCenterX + dpadHalfSize > sw
+				|| dpadCenterY < dpadHalfSize || dpadCenterY + dpadHalfSize > sh) {
+			dpadCenterX = dpadHalfSize + 20;
+			dpadCenterY = sh - dpadHalfSize - 20;
+		}
+	}
+
+	private void loadDpadSettings() {
+		float defaultSize = Math.min(ContextHolder.getDisplayWidth(), ContextHolder.getDisplayHeight()) * 0.22f;
+		dpadHalfSize = settings.dpadHalfSize > 0 ? settings.dpadHalfSize : defaultSize;
+		dpadCenterX = settings.dpadCenterX != 0 ? settings.dpadCenterX : -1;
+		dpadCenterY = settings.dpadCenterY != 0 ? settings.dpadCenterY : -1;
+		dpadVisible = settings.dpadVisible == null || settings.dpadVisible;
+	}
+
+	private void saveDpadSettings() {
+		settings.dpadHalfSize = dpadHalfSize;
+		settings.dpadCenterX = dpadCenterX;
+		settings.dpadCenterY = dpadCenterY;
+		settings.dpadVisible = dpadVisible;
+		ProfilesManager.saveConfig(settings);
 	}
 
 	public int getJoystickKeyUp() {
@@ -643,6 +697,20 @@ public class VirtualKeyboard implements Overlay, Runnable {
 				// Initialize joystick position
 				initJoystickPosition();
 			}
+			case TYPE_DPAD_RING -> {
+				Arrays.fill(keyScales, 1);
+
+				// D-pad ring draws itself; hide all regular keys
+				for (int i = 0; i < KEYBOARD_SIZE; i++) {
+					setSnap(i, SCREEN, RectSnap.INT_NORTH, false);
+				}
+				// Keep soft keys visible at bottom corners
+				setSnap(KEY_SOFT_LEFT, SCREEN, RectSnap.INT_SOUTHWEST, true);
+				setSnap(KEY_SOFT_RIGHT, SCREEN, RectSnap.INT_SOUTHEAST, true);
+				setSnap(KEY_MENU, SCREEN, RectSnap.INT_NORTH, false);
+
+				initDpadRingPosition();
+			}
 		}
 	}
 
@@ -656,7 +724,8 @@ public class VirtualKeyboard implements Overlay, Runnable {
 
 	public void setLayout(int variant) {
 		resetLayout(variant);
-		if (variant == TYPE_CUSTOM || variant == TYPE_JOYSTICK) {
+		if (variant == TYPE_CUSTOM || variant == TYPE_JOYSTICK
+				|| variant == TYPE_DPAD_RING) {
 			try {
 				readLayout();
 			} catch (IOException ioe) {
@@ -682,7 +751,8 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	private void saveLayout() {
 		try (RandomAccessFile raf = new RandomAccessFile(saveFile, "rw")) {
 			int variant = layoutVariant;
-			if (variant != TYPE_CUSTOM && variant != TYPE_JOYSTICK && raf.length() > 16) {
+			if (variant != TYPE_CUSTOM && variant != TYPE_JOYSTICK
+					&& variant != TYPE_DPAD_RING && raf.length() > 16) {
 				try {
 					if (raf.readInt() != LAYOUT_SIGNATURE) {
 						throw new IOException("file signature not found");
@@ -728,7 +798,8 @@ public class VirtualKeyboard implements Overlay, Runnable {
 			raf.writeInt(LAYOUT_TYPE);
 			raf.writeInt(1);
 			raf.write(variant);
-			if (variant != TYPE_CUSTOM && variant != TYPE_JOYSTICK) {
+			if (variant != TYPE_CUSTOM && variant != TYPE_JOYSTICK
+					&& variant != TYPE_DPAD_RING) {
 				raf.writeInt(LAYOUT_EOF);
 				raf.writeInt(0);
 				raf.setLength(raf.getFilePointer());
@@ -874,25 +945,29 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	}
 
 	public String[] getKeyNames() {
-		int extra = isJoystick() ? 1 : 0;
+		int extra = (isJoystick() || isDpadRing()) ? 1 : 0;
 		String[] names = new String[KEYBOARD_SIZE + extra];
 		for (int i = 0; i < KEYBOARD_SIZE; i++) {
 			names[i] = keypad[i].label;
 		}
 		if (extra > 0) {
-			names[KEYBOARD_SIZE] = "Joystick";
+			names[KEYBOARD_SIZE] = isJoystick() ? "Joystick" : "D-pad";
 		}
 		return names;
 	}
 
 	public boolean[] getKeysVisibility() {
-		int extra = isJoystick() ? 1 : 0;
+		int extra = (isJoystick() || isDpadRing()) ? 1 : 0;
 		boolean[] states = new boolean[KEYBOARD_SIZE + extra];
 		for (int i = 0; i < KEYBOARD_SIZE; i++) {
 			states[i] = !keypad[i].visible;
 		}
 		if (extra > 0) {
-			states[KEYBOARD_SIZE] = !joystickVisible;
+			if (isJoystick()) {
+				states[KEYBOARD_SIZE] = !joystickVisible;
+			} else {
+				states[KEYBOARD_SIZE] = !dpadVisible;
+			}
 		}
 		return states;
 	}
@@ -901,9 +976,14 @@ public class VirtualKeyboard implements Overlay, Runnable {
 		for (int i = 0; i < KEYBOARD_SIZE; i++) {
 			keypad[i].visible = !states[i];
 		}
-		if (isJoystick() && states.length > KEYBOARD_SIZE) {
-			joystickVisible = !states[KEYBOARD_SIZE];
-			saveJoystickSettings();
+		if (states.length > KEYBOARD_SIZE) {
+			if (isJoystick()) {
+				joystickVisible = !states[KEYBOARD_SIZE];
+				saveJoystickSettings();
+			} else if (isDpadRing()) {
+				dpadVisible = !states[KEYBOARD_SIZE];
+				saveDpadSettings();
+			}
 		}
 		overlayView.postInvalidate();
 	}
@@ -1088,6 +1168,9 @@ public class VirtualKeyboard implements Overlay, Runnable {
 		if (isJoystick()) {
 			initJoystickPosition();
 		}
+		if (isDpadRing()) {
+			initDpadRingPosition();
+		}
 	}
 
 	private float getKeySize(float screenWidth, float screenHeight) {
@@ -1112,6 +1195,10 @@ public class VirtualKeyboard implements Overlay, Runnable {
 			// Draw joystick
 			if (isJoystick() && joystickVisible) {
 				paintJoystick(g);
+			}
+			// Draw D-pad ring
+			if (isDpadRing() && dpadVisible) {
+				paintDpadRing(g);
 			}
 		}
 	}
@@ -1176,6 +1263,94 @@ public class VirtualKeyboard implements Overlay, Runnable {
 		}
 	}
 
+
+	private void paintDpadRing(CanvasWrapper g) {
+		int alpha = (layoutEditMode != LAYOUT_EOF ? 0xFF : settings.vkAlpha) << 24;
+		int editAlpha = layoutEditMode != LAYOUT_EOF ? (0xFF / 3) << 24 : alpha;
+
+		float outerR = dpadHalfSize * 0.25f; // corner radius of outer square
+		float thickness = dpadHalfSize * DPAD_RING_THICKNESS;
+		float innerHalf = dpadHalfSize - thickness;
+		float innerR = innerHalf * 0.30f;
+
+		RectF outer = new RectF(dpadCenterX - dpadHalfSize, dpadCenterY - dpadHalfSize,
+				dpadCenterX + dpadHalfSize, dpadCenterY + dpadHalfSize);
+		RectF inner = new RectF(dpadCenterX - innerHalf, dpadCenterY - innerHalf,
+				dpadCenterX + innerHalf, dpadCenterY + innerHalf);
+
+		// Fill ring area using outer fill then inner fill with background color
+		int bgColor = editAlpha | settings.vkBgColor;
+		g.setFillColor(bgColor);
+		g.fillRoundRect(outer, (int) outerR, (int) outerR);
+
+		// Cut out center with surface background (transparent-ish white/theme)
+		// Use selected color if any direction active, otherwise fg for inner
+		boolean anyActive = dpUp || dpDown || dpLeft || dpRight;
+		int centerFill = anyActive
+				? (editAlpha | settings.vkBgColorSelected)
+				: (editAlpha | settings.vkBgColor);
+		g.setFillColor((editAlpha >>> 24 == 0xFF ? 0xFF000000 : editAlpha) | (settings.vkBgColor & 0xFFFFFF) | 0x44000000);
+		// Draw inner cut-out with slightly transparent bg to show "hole"
+		g.setFillColor((alpha & 0xAA000000) | (settings.vkBgColor & 0x00FFFFFF));
+		g.fillRoundRect(inner, (int) innerR, (int) innerR);
+
+		// Highlight active sectors
+		if (anyActive) {
+			int hlColor = editAlpha | settings.vkBgColorSelected;
+			g.setFillColor(hlColor);
+			// Paint a clipped sector highlight by overlapping rects on the ring area
+			if (dpUp) {
+				RectF seg = new RectF(dpadCenterX - dpadHalfSize, dpadCenterY - dpadHalfSize,
+						dpadCenterX + dpadHalfSize, dpadCenterY);
+				g.fillRoundRect(seg, (int) outerR, (int) outerR);
+			}
+			if (dpDown) {
+				RectF seg = new RectF(dpadCenterX - dpadHalfSize, dpadCenterY,
+						dpadCenterX + dpadHalfSize, dpadCenterY + dpadHalfSize);
+				g.fillRoundRect(seg, (int) outerR, (int) outerR);
+			}
+			if (dpLeft) {
+				RectF seg = new RectF(dpadCenterX - dpadHalfSize, dpadCenterY - dpadHalfSize,
+						dpadCenterX, dpadCenterY + dpadHalfSize);
+				g.fillRoundRect(seg, (int) outerR, (int) outerR);
+			}
+			if (dpRight) {
+				RectF seg = new RectF(dpadCenterX, dpadCenterY - dpadHalfSize,
+						dpadCenterX + dpadHalfSize, dpadCenterY + dpadHalfSize);
+				g.fillRoundRect(seg, (int) outerR, (int) outerR);
+			}
+			// Re-punch the hole so highlight doesn't fill center
+			g.setFillColor((alpha & 0xAA000000) | (settings.vkBgColor & 0x00FFFFFF));
+			g.fillRoundRect(inner, (int) innerR, (int) innerR);
+		}
+
+		// Outline
+		g.setDrawColor(alpha | settings.vkOutlineColor);
+		g.drawRoundRect(outer, (int) outerR, (int) outerR);
+		g.drawRoundRect(inner, (int) innerR, (int) innerR);
+
+		// Direction labels
+		float labelDist = dpadHalfSize * 0.72f;
+		int fgColor = anyActive ? (alpha | settings.vkFgColorSelected) : (alpha | settings.vkFgColor);
+		g.setTextColor(fgColor);
+		g.drawString(ARROW_UP,    dpadCenterX,            dpadCenterY - labelDist);
+		g.drawString(ARROW_DOWN,  dpadCenterX,            dpadCenterY + labelDist);
+		g.drawString(ARROW_LEFT,  dpadCenterX - labelDist, dpadCenterY);
+		g.drawString(ARROW_RIGHT, dpadCenterX + labelDist, dpadCenterY);
+
+		// Edit resize handle (bottom-right corner)
+		if (layoutEditMode == LAYOUT_KEYS || layoutEditMode == LAYOUT_SCALES) {
+			float hs = dpadHalfSize * 0.15f;
+			float hx = dpadCenterX + dpadHalfSize - hs;
+			float hy = dpadCenterY + dpadHalfSize - hs;
+			RectF hr = new RectF(hx, hy, hx + hs * 2, hy + hs * 2);
+			g.setFillColor(0xAAFF8800);
+			g.fillArc(hr, 0, 360);
+			g.setDrawColor(0xFFFFFFFF);
+			g.drawArc(hr, 0, 360);
+		}
+	}
+
 	@Override
 	public boolean pointerPressed(int pointer, float x, float y) {
 		switch (layoutEditMode) {
@@ -1196,6 +1371,17 @@ public class VirtualKeyboard implements Overlay, Runnable {
 						return true;
 					}
 				}
+				// Check D-pad ring
+				if (isDpadRing() && dpadVisible && dpadPointer < 0) {
+					if (dpadRingHitTest(x, y)) {
+						vibrate();
+						dpadActive = true;
+						dpadPointer = pointer;
+						handleDpadMove(x, y);
+						overlayView.postInvalidate();
+						return true;
+					}
+				}
 				for (int i = 0; i < keypad.length; i++) {
 					VirtualKey key = keypad[i];
 					if (!key.visible) continue;
@@ -1209,6 +1395,29 @@ public class VirtualKeyboard implements Overlay, Runnable {
 				}
 			}
 			case LAYOUT_KEYS -> {
+				// Check D-pad ring drag/resize in edit mode
+				if (isDpadRing()) {
+					float hs = dpadHalfSize * 0.15f;
+					float hx = dpadCenterX + dpadHalfSize - hs;
+					float hy = dpadCenterY + dpadHalfSize - hs;
+					float hdx = x - (hx + hs);
+					float hdy = y - (hy + hs);
+					if (hdx * hdx + hdy * hdy <= (hs) * (hs)) {
+						dpadResizeMode = true;
+						dpadResizeStartDist = (float) Math.sqrt(
+								(x - dpadCenterX) * (x - dpadCenterX) +
+								(y - dpadCenterY) * (y - dpadCenterY));
+						dpadResizeStartSize = dpadHalfSize;
+						return true;
+					}
+					if (x >= dpadCenterX - dpadHalfSize && x <= dpadCenterX + dpadHalfSize
+							&& y >= dpadCenterY - dpadHalfSize && y <= dpadCenterY + dpadHalfSize) {
+						dpadDragMode = true;
+						dpadDragOffsetX = x - dpadCenterX;
+						dpadDragOffsetY = y - dpadCenterY;
+						return true;
+					}
+				}
 				// Check joystick drag/resize in edit mode
 				if (isJoystick()) {
 					float handleSize = joystickRadius * 0.2f;
@@ -1297,6 +1506,12 @@ public class VirtualKeyboard implements Overlay, Runnable {
 					overlayView.postInvalidate();
 					return true;
 				}
+				// Handle D-pad ring drag
+				if (isDpadRing() && dpadActive && pointer == dpadPointer) {
+					handleDpadMove(x, y);
+					overlayView.postInvalidate();
+					return true;
+				}
 				VirtualKey aKey = associatedKeys[pointer];
 				if (aKey == null) {
 					pointerPressed(pointer, x, y);
@@ -1308,6 +1523,25 @@ public class VirtualKeyboard implements Overlay, Runnable {
 				}
 			}
 			case LAYOUT_KEYS -> {
+				// Handle D-pad ring drag/resize in edit mode
+				if (dpadDragMode) {
+					dpadCenterX = x - dpadDragOffsetX;
+					dpadCenterY = y - dpadDragOffsetY;
+					overlayView.postInvalidate();
+					return false;
+				}
+				if (dpadResizeMode) {
+					float dist = (float) Math.sqrt(
+							(x - dpadCenterX) * (x - dpadCenterX) +
+							(y - dpadCenterY) * (y - dpadCenterY));
+					float ratio = dist / dpadResizeStartDist;
+					float newSize = dpadResizeStartSize * ratio;
+					float minSize = keySize * 0.8f;
+					float maxSize = Math.min(screen.width(), screen.height()) * 0.45f;
+					dpadHalfSize = Math.max(minSize, Math.min(maxSize, newSize));
+					overlayView.postInvalidate();
+					return false;
+				}
 				// Handle joystick drag/resize in edit mode
 				if (joystickDragMode) {
 					joystickCenterX = x - joystickDragOffsetX;
@@ -1359,6 +1593,19 @@ public class VirtualKeyboard implements Overlay, Runnable {
 				}
 			}
 			case LAYOUT_SCALES -> {
+				// Handle D-pad ring resize in scale mode
+				if (dpadResizeMode) {
+					float dist = (float) Math.sqrt(
+							(x - dpadCenterX) * (x - dpadCenterX) +
+							(y - dpadCenterY) * (y - dpadCenterY));
+					float ratio = dist / dpadResizeStartDist;
+					float newSize = dpadResizeStartSize * ratio;
+					float minSize = keySize * 0.8f;
+					float maxSize = Math.min(screen.width(), screen.height()) * 0.45f;
+					dpadHalfSize = Math.max(minSize, Math.min(maxSize, newSize));
+					overlayView.postInvalidate();
+					return false;
+				}
 				// Handle joystick resize in scale mode
 				if (joystickResizeMode) {
 					float dist = (float) Math.sqrt(
@@ -1433,6 +1680,13 @@ public class VirtualKeyboard implements Overlay, Runnable {
 				overlayView.postInvalidate();
 				return true;
 			}
+			// Handle D-pad ring release
+			if (isDpadRing() && dpadActive && pointer == dpadPointer) {
+				vibrateRelease();
+				releaseDpad();
+				overlayView.postInvalidate();
+				return true;
+			}
 			VirtualKey key = associatedKeys[pointer];
 			if (key != null) {
 				associatedKeys[pointer] = null;
@@ -1440,6 +1694,12 @@ public class VirtualKeyboard implements Overlay, Runnable {
 				overlayView.postInvalidate();
 			}
 		} else if (layoutEditMode == LAYOUT_KEYS) {
+			if (dpadDragMode || dpadResizeMode) {
+				dpadDragMode = false;
+				dpadResizeMode = false;
+				saveDpadSettings();
+				return false;
+			}
 			if (joystickDragMode || joystickResizeMode) {
 				joystickDragMode = false;
 				joystickResizeMode = false;
@@ -1471,6 +1731,10 @@ public class VirtualKeyboard implements Overlay, Runnable {
 			snapKeys();
 			editedIndex = -1;
 		} else if (layoutEditMode == LAYOUT_SCALES) {
+			if (dpadResizeMode) {
+				dpadResizeMode = false;
+				saveDpadSettings();
+			}
 			if (joystickResizeMode) {
 				joystickResizeMode = false;
 				saveJoystickSettings();
@@ -1541,6 +1805,69 @@ public class VirtualKeyboard implements Overlay, Runnable {
 		jsRight = newRight;
 	}
 
+
+	private boolean dpadRingHitTest(float x, float y) {
+		// Inside outer square?
+		if (x < dpadCenterX - dpadHalfSize || x > dpadCenterX + dpadHalfSize
+				|| y < dpadCenterY - dpadHalfSize || y > dpadCenterY + dpadHalfSize) {
+			return false;
+		}
+		// Outside inner square (the ring area)?
+		float innerHalf = dpadHalfSize * (1f - DPAD_RING_THICKNESS);
+		boolean insideInner = x > dpadCenterX - innerHalf && x < dpadCenterX + innerHalf
+				&& y > dpadCenterY - innerHalf && y < dpadCenterY + innerHalf;
+		return !insideInner;
+	}
+
+	/**
+	 * Map touch position to 8 D-pad directions.
+	 * Uses angle from center, split into 8 equal 45-degree octants.
+	 * Corner octants press TWO adjacent keys simultaneously.
+	 */
+	private void handleDpadMove(float x, float y) {
+		if (target == null) return;
+
+		double angle = Math.toDegrees(Math.atan2(y - dpadCenterY, x - dpadCenterX));
+		// angle: 0=right, 90=down, ±180=left, -90=up  (standard atan2)
+		// Normalize to [0, 360)
+		if (angle < 0) angle += 360;
+
+		// 8 octants, each 45° wide, centred on the 8 compass points:
+		//  E=0°, SE=45°, S=90°, SW=135°, W=180°, NW=225°, N=270°, NE=315°
+		boolean newUp    = angle >= 247.5 && angle < 292.5;  // N
+		boolean newDown  = angle >= 67.5  && angle < 112.5;  // S
+		boolean newLeft  = angle >= 157.5 && angle < 202.5;  // W
+		boolean newRight = (angle < 22.5  || angle >= 337.5);// E
+		// NE corner: Up + Right
+		if (angle >= 292.5 && angle < 337.5) { newUp = true; newRight = true; }
+		// SE corner: Down + Right
+		if (angle >= 22.5  && angle < 67.5)  { newDown = true; newRight = true; }
+		// SW corner: Down + Left
+		if (angle >= 112.5 && angle < 157.5) { newDown = true; newLeft = true; }
+		// NW corner: Up + Left
+		if (angle >= 202.5 && angle < 247.5) { newUp = true; newLeft = true; }
+
+		if (newUp    != dpUp)    { if (newUp)    target.postKeyPressed(Canvas.KEY_UP);    else target.postKeyReleased(Canvas.KEY_UP);    }
+		if (newDown  != dpDown)  { if (newDown)  target.postKeyPressed(Canvas.KEY_DOWN);  else target.postKeyReleased(Canvas.KEY_DOWN);  }
+		if (newLeft  != dpLeft)  { if (newLeft)  target.postKeyPressed(Canvas.KEY_LEFT);  else target.postKeyReleased(Canvas.KEY_LEFT);  }
+		if (newRight != dpRight) { if (newRight) target.postKeyPressed(Canvas.KEY_RIGHT); else target.postKeyReleased(Canvas.KEY_RIGHT); }
+
+		dpUp = newUp; dpDown = newDown; dpLeft = newLeft; dpRight = newRight;
+		overlayView.postInvalidate();
+	}
+
+	private void releaseDpad() {
+		if (target != null) {
+			if (dpUp)    target.postKeyReleased(Canvas.KEY_UP);
+			if (dpDown)  target.postKeyReleased(Canvas.KEY_DOWN);
+			if (dpLeft)  target.postKeyReleased(Canvas.KEY_LEFT);
+			if (dpRight) target.postKeyReleased(Canvas.KEY_RIGHT);
+		}
+		dpUp = dpDown = dpLeft = dpRight = false;
+		dpadActive = false;
+		dpadPointer = -1;
+	}
+
 	private void releaseJoystick() {
 		if (target != null) {
 			if (jsUp) target.postKeyReleased(joystickKeyUp);
@@ -1583,6 +1910,10 @@ public class VirtualKeyboard implements Overlay, Runnable {
 		// Cancel joystick
 		if (joystickActive) {
 			releaseJoystick();
+		}
+		// Cancel D-pad ring
+		if (dpadActive) {
+			releaseDpad();
 		}
 	}
 

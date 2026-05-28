@@ -267,7 +267,7 @@ public class MicroLoader {
 			Canvas.setSettings(params);
 
 			Font.applySettings(params);
-
+		MidletSystem.setFakeTime(params.fakeTimeEnabled && params.fakeTime > 0, params.fakeTime);
 			KeyMapper.setKeyMapping(params);
 			File sb = new File(workDir + Config.SOUNDBANKS_DIR + params.soundBank);
 			if (sb.exists()) {

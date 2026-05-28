@@ -64,11 +64,14 @@ import androidx.preference.PreferenceManager;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Set;
 
 import javax.microedition.shell.MicroActivity;
@@ -187,6 +190,9 @@ public class ConfigActivity extends AppCompatActivity implements View.OnClickLis
 		binding.cmdVKOutline.setOnClickListener(this);
 		binding.btEncoding.setOnClickListener(this::showCharsetPicker);
 		binding.btShaderTune.setOnClickListener(this::showShaderSettings);
+		binding.cxFakeTime.setOnCheckedChangeListener((cb, checked) ->
+				binding.btFakeTime.setEnabled(checked));
+		binding.btFakeTime.setOnClickListener(v -> showFakeTimePicker());
 		binding.tfScaleRatioValue.addTextChangedListener(new TextWatcher() {
 			@Override
 			public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -627,6 +633,12 @@ public class ConfigActivity extends AppCompatActivity implements View.OnClickLis
 			systemProperties = ContextHolder.getAssetAsString("defaults/system.props");
 		}
 		binding.tfSystemProperties.setText(getSystemProperties(systemProperties));
+
+		boolean fakeEnabled = params.fakeTimeEnabled;
+		binding.cxFakeTime.setChecked(fakeEnabled);
+		binding.btFakeTime.setEnabled(fakeEnabled);
+		long fakeMs = params.fakeTime > 0 ? params.fakeTime : System.currentTimeMillis();
+		updateFakeTimeButton(fakeMs);
 	}
 
 	private void saveParams() {
@@ -735,6 +747,11 @@ public class ConfigActivity extends AppCompatActivity implements View.OnClickLis
 			}
 			params.soundBank = binding.spSoundBank.getSelectedItemPosition() > 0 ? (String) binding.spSoundBank.getSelectedItem() : null;
 			params.systemProperties = getSystemProperties(binding.tfSystemProperties.getText().toString());
+
+			params.fakeTimeEnabled = binding.cxFakeTime.isChecked();
+			if (params.fakeTimeEnabled && params.fakeTime == 0) {
+				params.fakeTime = System.currentTimeMillis();
+			}
 
 			ProfilesManager.saveConfig(params);
 		} catch (Throwable t) {
@@ -902,6 +919,42 @@ public class ConfigActivity extends AppCompatActivity implements View.OnClickLis
 			color = 0;
 		}
 		new AmbilWarnaDialog(this, color | 0xFF000000, colorListener).show();
+	}
+
+	private void showFakeTimePicker() {
+		long currentFake = params.fakeTime > 0 ? params.fakeTime : System.currentTimeMillis();
+		Calendar cal = Calendar.getInstance();
+		cal.setTimeInMillis(currentFake);
+		android.app.DatePickerDialog dateDlg = new android.app.DatePickerDialog(
+				this,
+				(dp, year, month, day) -> {
+					Calendar picked = Calendar.getInstance();
+					picked.setTimeInMillis(params.fakeTime > 0 ? params.fakeTime : System.currentTimeMillis());
+					picked.set(year, month, day);
+					new android.app.TimePickerDialog(
+							this,
+							(tp, hour, minute) -> {
+								picked.set(Calendar.HOUR_OF_DAY, hour);
+								picked.set(Calendar.MINUTE, minute);
+								picked.set(Calendar.SECOND, 0);
+								picked.set(Calendar.MILLISECOND, 0);
+								params.fakeTime = picked.getTimeInMillis();
+								updateFakeTimeButton(params.fakeTime);
+							},
+							picked.get(Calendar.HOUR_OF_DAY),
+							picked.get(Calendar.MINUTE),
+							true
+					).show();
+				},
+				cal.get(Calendar.YEAR),
+				cal.get(Calendar.MONTH),
+				cal.get(Calendar.DAY_OF_MONTH));
+		dateDlg.show();
+	}
+
+	private void updateFakeTimeButton(long millis) {
+		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
+		binding.btFakeTime.setText(sdf.format(new java.util.Date(millis)));
 	}
 
 	private void addResolutionToPresets() {

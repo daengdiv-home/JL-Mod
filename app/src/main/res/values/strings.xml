@@ -57,7 +57,10 @@
     <string name="hide_buttons">Hide buttons</string>
     <string name="reset_position">Reset position</string>
     <string name="joystick_mapping">Joystick mapping</string>
+    <string name="pref_vk_type_dpad_ring">D-pad ring</string>
     <string name="action_key_style_3d">Nokia 3D key style</string>
+    <string name="pref_fake_time">Custom in-game clock</string>
+    <string name="pref_fake_time_hint">Set start date/time for the game clock</string>
     <string name="joystick_map_up">Up</string>
     <string name="joystick_map_down">Down</string>
     <string name="joystick_map_left">Left</string>

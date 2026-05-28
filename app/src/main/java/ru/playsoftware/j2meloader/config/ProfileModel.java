@@ -197,6 +197,25 @@ public class ProfileModel {
 	@SerializedName("SystemProperties")
 	public String systemProperties;
 
+	@SerializedName("FakeTimeEnabled")
+	public boolean fakeTimeEnabled;
+
+	/** Custom start time in milliseconds since Unix epoch (used when fakeTimeEnabled = true). */
+	@SerializedName("FakeTime")
+	public long fakeTime;
+
+	@SerializedName("DpadCenterX")
+	public float dpadCenterX;
+
+	@SerializedName("DpadCenterY")
+	public float dpadCenterY;
+
+	@SerializedName("DpadHalfSize")
+	public float dpadHalfSize;
+
+	@SerializedName("DpadVisible")
+	public Boolean dpadVisible;
+
 	@SuppressWarnings("unused") // Gson uses default constructor if present
 	public ProfileModel() {
 		isNew = false;
