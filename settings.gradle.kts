@@ -15,5 +15,5 @@ dependencyResolutionManagement {
         maven("https://jitpack.io")
     }
 }
-rootProject.name = "JL-Mod"
+rootProject.name = "Nokia Java"
 include(":app", ":dexlib")

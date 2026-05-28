@@ -17,8 +17,8 @@ android {
         applicationId = "ru.woesss.j2meloader"
         minSdk = rootProject.extra["minSdk"] as Int
         targetSdk = rootProject.extra["targetSdk"] as Int
-        versionCode = 48
-        versionName = "0.87.1"
+        versionCode = 1
+        versionName = "1.0.0"
         resValue("string", "app_name", rootProject.name)
         vectorDrawables.useSupportLibrary = true
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
